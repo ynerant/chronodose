@@ -1,0 +1,22 @@
+---
+irc:
+  nickname: chronodose
+  host: irc.crans.org
+  channel: '#chronodose'
+
+search:
+  - position:
+      longitude: 2.2770207
+      latitude: 48.8588377
+       city: Paris
+    radius: 15
+    departements:
+      - 75
+      - 77
+      - 78
+      - 92
+      - 93
+      - 94
+      - 95
+    mentions:
+      - toto

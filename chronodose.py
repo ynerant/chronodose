@@ -3,11 +3,48 @@
 from dataclasses import dataclass
 from datetime import date
 from math import acos, cos, pi, sin
+import os
 import requests
+import sys
 from threading import Thread
 from time import sleep
+import yaml
 
 from irc import IRCClient
+
+
+@dataclass
+class Config:
+    @dataclass
+    class IRCConfig:
+        nickname: str = ""
+        host: str = ""
+        channel: str = ""
+
+
+    @dataclass
+    class SearchConfig:
+        position: "Location" = None
+        radius: float = 0
+        departements: list[int] = None
+        mentions: list[str] = None
+
+
+    irc: "IRCConfig" = None
+    search: list["SearchConfig"] = None
+
+    def __init__(self, irc: "IRCConfig", search: list["SearchConfig"]):
+        if isinstance(irc, dict):
+            irc = Config.IRCConfig(**irc)
+        if not search:
+            search = []
+        search = [Config.SearchConfig(**sc) if isinstance(sc, dict) else sc for sc in search]
+        for s in search:
+            if isinstance(s.position, dict):
+                s.position = Location(**s.position)
+
+        self.irc = irc
+        self.search = search
 
 
 @dataclass
@@ -87,36 +124,41 @@ def check_dpt(dpt_number: int, position: Location, radius: int = 20):
 
 
 def main():
-    gif = Location(latitude=48.7090418, longitude=2.1648068, city="Gif-sur-Yvette")
-    lyon = Location(latitude=45.7579502, longitude=4.8001017, city="Lyon")
-    chambéry = Location(latitude=45.5822142, longitude=5.8713341, city="Chambéry")
-    nantes = Location(latitude=47.2382007, longitude=-1.6300954, city="Nantes")
-    marseille = Location(latitude=43.2803692, longitude=5.3104571, city="Marseille")
+    if not os.path.isfile('config.yml'):
+        print("Le fichier de configuration n'existe pas. "
+              "Commencez par copier l'exemple depuis config.yml.example.", file=sys.stderr)
+        exit(1)
 
-    irc_client = IRCClient('irc.crans.org', 'chronodose')
+    # Chargement de la configuration
+    with open('config.yml') as f:
+        config = yaml.safe_load(f)
+    config = Config(**config)
+
+    irc_client = IRCClient(config.irc.host, config.irc.nickname)
     Thread(target=irc_client.start).start()
+    # Connexion à IRC
     sleep(10)
-    irc_client.join('#chronodose')
-    irc_client.privmsg('#chronodose', 'coucou')
+    irc_client.join(config.irc.channel)
+    irc_client.privmsg(config.irc.channel, 'coucou')
 
     already_indicated = []
 
     def msg(*mesg: str) -> None:
         # Afficher un message dans la console et sur IRC
         print(*mesg)
-        irc_client.privmsg('#chronodose', ' '.join(str(a) for a in mesg))
+        irc_client.privmsg(config.irc.channel, ' '.join(str(a) for a in mesg))
 
     while True:
-        places = {}
-        for dpt, ville in [(91, gif), (92, gif), (94, gif), (78, gif), (69, lyon),
-                (73, chambéry), (44, nantes), (13, marseille)]:
-            places[dpt] = check_dpt(dpt, ville)
+        for search in config.search:
+            places = []
+            for dpt in search.departements:
+                places.extend(check_dpt(dpt, search.position, search.radius))
 
-        for dpt, places in places.items():
             if not places:
-                print("Pas de dose disponible dans le", dpt)
+                print("Pas de place disponible autour de", search.position.city)
                 continue
-            print(sum(place[1] for place in places), "doses disponibles dans le", dpt)
+
+            print(sum(place[1] for place in places), "doses disponibles autour de", search.position.city)
             for centre, count in places:
                 if (centre.internal_id, date.today()) in already_indicated:
                     # Message déjà envoyé, on spam pas
@@ -127,6 +169,7 @@ def main():
                 msg("Type de vaccin :", ", ".join(centre.vaccine_type))
                 msg(centre.metadata.address, centre.metadata.phone_number)
                 msg("Réserver sur", centre.url)
+                msg(*search.mentions)
                 msg(" ")
 
         # 5 minutes
