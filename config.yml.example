@@ -4,6 +4,8 @@ irc:
   host: irc.crans.org
   channel: '#chronodose'
 
+delay: 300
+
 search:
   - position:
       longitude: 2.2770207

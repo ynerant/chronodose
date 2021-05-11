@@ -31,9 +31,10 @@ class Config:
 
 
     irc: "IRCConfig" = None
+    delay: int = 300
     search: list["SearchConfig"] = None
 
-    def __init__(self, irc: "IRCConfig", search: list["SearchConfig"]):
+    def __init__(self, irc: "IRCConfig", delay: int, search: list["SearchConfig"]):
         if isinstance(irc, dict):
             irc = Config.IRCConfig(**irc)
         if not search:
