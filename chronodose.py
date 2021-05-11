@@ -149,6 +149,8 @@ def main():
         irc_client.privmsg(config.irc.channel, ' '.join(str(a) for a in mesg))
 
     while True:
+        centres_id = []  # Centres disponibles
+
         for search in config.search:
             places = []
             for dpt in search.departements:
@@ -160,10 +162,12 @@ def main():
 
             print(sum(place[1] for place in places), "doses disponibles autour de", search.position.city)
             for centre, count in places:
-                if (centre.internal_id, date.today()) in already_indicated:
+                centres_id.append(centre.internal_id)
+
+                if centre.internal_id in already_indicated:
                     # Message déjà envoyé, on spam pas
                     continue
-                already_indicated.append((centre.internal_id, date.today()))
+                already_indicated.append(centre.internal_id)
 
                 msg(count, "doses dans le centre de", centre.nom)
                 msg("Type de vaccin :", ", ".join(centre.vaccine_type))
@@ -171,6 +175,11 @@ def main():
                 msg("Réserver sur", centre.url)
                 msg(*search.mentions)
                 msg(" ")
+
+        # Pour chaque centre indisponible, on réactive les alertes
+        for centre_id in already_indicated.copy():
+            if all(cid != centre_id for cid in centres_id):
+                already_indicated.remove(centre_id)
 
         # 5 minutes
         sleep(300)
